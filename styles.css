@@ -1,0 +1,536 @@
+/* Global styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    color: #333;
+    background-color: #f5f5f5;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    border: 1px solid #e0e0e0;
+    background-color: white;
+}
+
+/* Custom title bar */
+.title-bar {
+    height: 40px;
+    background-color: #f8f8f8;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    -webkit-app-region: drag;
+    user-select: none;
+}
+
+.title-bar button {
+    -webkit-app-region: no-drag;
+}
+
+.title-bar-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.nav-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.nav-btn:hover {
+    background-color: #ececec;
+}
+
+.url-bar {
+    flex-grow: 1;
+    display: flex;
+    margin: 0 10px;
+}
+
+#urlInput {
+    flex-grow: 1;
+    height: 30px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px 0 0 4px;
+    padding: 0 10px;
+    -webkit-app-region: no-drag;
+}
+
+#goBtn {
+    height: 30px;
+    padding: 0 15px;
+    border: 1px solid #e0e0e0;
+    border-left: none;
+    border-radius: 0 4px 4px 0;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+
+#goBtn:hover {
+    background-color: #ececec;
+}
+
+.window-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.window-control {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.window-control:hover {
+    background-color: #ececec;
+}
+
+#closeBtn:hover {
+    background-color: #ff5252;
+    color: white;
+}
+
+/* Main content */
+.content-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+/* YouTube webview */
+#youtubeView {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Download panel */
+.download-panel {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 350px;
+    background-color: white;
+    border-top-left-radius: 8px;
+    box-shadow: -2px -2px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+    z-index: 2;
+}
+
+.download-panel.collapsed {
+    transform: translateY(calc(100% - 40px));
+}
+
+/* Features panel */
+.features-panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 350px;
+    background-color: white;
+    border-top-right-radius: 8px;
+    box-shadow: 2px -2px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+    z-index: 2;
+}
+
+.features-panel.collapsed {
+    transform: translateY(calc(100% - 40px));
+}
+
+.download-header, .features-header {
+    padding: 10px 15px;
+    background-color: #f8f8f8;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.download-header {
+    border-top-left-radius: 8px;
+}
+
+.features-header {
+    border-top-right-radius: 8px;
+}
+
+.download-header h3, .features-header h3 {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+#toggleDownloadBtn, #toggleFeaturesBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: transform 0.3s;
+}
+
+.download-panel.collapsed #toggleDownloadBtn, 
+.features-panel.collapsed #toggleFeaturesBtn {
+    transform: rotate(180deg);
+}
+
+.download-content, .features-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.download-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#downloadUrl {
+    padding: 8px 10px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.format-options {
+    display: flex;
+    gap: 15px;
+}
+
+#downloadBtn {
+    padding: 8px 0;
+    background-color: #ff0000;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+#downloadBtn:hover {
+    background-color: #cc0000;
+}
+
+.downloads-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.download-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 10px;
+    background-color: #fafafa;
+}
+
+.download-title {
+    font-size: 14px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.download-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.progress-bar {
+    flex-grow: 1;
+    height: 6px;
+    background-color: #e0e0e0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: #4caf50;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.progress-text {
+    font-size: 12px;
+    min-width: 30px;
+    text-align: right;
+}
+
+.download-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+}
+
+.download-actions button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.download-actions button:hover {
+    background-color: #ececec;
+}
+
+/* State classes */
+.completed .progress-fill {
+    background-color: #4caf50;
+}
+
+.error .progress-fill {
+    background-color: #ff5252;
+}
+
+/* Feature panel styles */
+.features-info, .feature-help {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.features-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.feature-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #f9f9f9;
+    border-radius: 6px;
+    border: 1px solid #eee;
+}
+
+.feature-info {
+    flex-grow: 1;
+}
+
+.feature-name {
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.feature-description {
+    font-size: 12px;
+    color: #666;
+}
+
+.feature-actions {
+    margin-left: 10px;
+}
+
+/* Toggle switch styles */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 22px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 22px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: #4caf50;
+}
+
+input:focus + .toggle-slider {
+    box-shadow: 0 0 1px #4caf50;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* Feature error display */
+.feature-error {
+    padding: 10px;
+    background-color: #fff2f2;
+    color: #f44336;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.download-error-message {
+    color: #ff5252;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+/* Extensions specific styles */
+.extensions-info {
+    font-size: 14px;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.extensions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.extension-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 12px;
+    background-color: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.extension-title {
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.extension-status {
+    font-size: 12px;
+    padding: 3px 6px;
+    border-radius: 3px;
+}
+
+.extension-status.installed {
+    background-color: #e6f7e9;
+    color: #4caf50;
+}
+
+.extension-status.not-installed {
+    background-color: #ffebee;
+    color: #f44336;
+}
+
+.extension-id {
+    font-size: 12px;
+    color: #757575;
+    word-break: break-all;
+}
+
+.extension-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.extension-actions button {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    background-color: #2196f3;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.extension-actions button:hover {
+    background-color: #1976d2;
+}
+
+.extensions-actions {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#openExtFolderBtn {
+    padding: 8px 0;
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+#openExtFolderBtn:hover {
+    background-color: #1976d2;
+}
+
+.extension-help {
+    font-size: 12px;
+    color: #757575;
+    line-height: 1.4;
+}
+
+.extension-error {
+    padding: 10px;
+    background-color: #ffebee;
+    border: 1px solid #ffcdd2;
+    border-radius: 4px;
+    color: #d32f2f;
+    margin-bottom: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+}

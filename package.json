@@ -1,0 +1,23 @@
+{
+  "name": "ytview",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "pack": "electron-builder --dir"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "YouTube viewer with ad blocker, sponsor block, DeArrow, Return YouTube Dislike, and download features",
+  "devDependencies": {
+    "electron": "^36.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "node-fetch": "^3.3.2",
+    "ytdl-core": "^4.11.5"
+  }
+}

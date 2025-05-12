@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YTView</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Custom Title Bar -->
+        <header class="title-bar">
+            <div class="title-bar-controls">
+                <button class="nav-btn" id="backBtn" title="Back">⬅️</button>
+                <button class="nav-btn" id="forwardBtn" title="Forward">➡️</button>
+                <button class="nav-btn" id="refreshBtn" title="Refresh">🔄</button>
+                <button class="nav-btn" id="homeBtn" title="Home">🏠</button>
+            </div>
+            <div class="url-bar">
+                <input type="text" id="urlInput" placeholder="Enter YouTube URL or search...">
+                <button id="goBtn">Go</button>
+            </div>
+            <div class="window-controls">
+                <button id="minimizeBtn" class="window-control">🗕</button>
+                <button id="maximizeBtn" class="window-control">🗖</button>
+                <button id="closeBtn" class="window-control">✖</button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="content-container">
+            <!-- YouTube Webview -->
+            <webview 
+                id="youtubeView" 
+                src="https://www.youtube.com" 
+                preload="./webview-preload.js"
+                allowpopups
+                partition="persist:ytview"
+                webpreferences="sandbox=false, contextIsolation=true, plugins=true, enableBlinkFeatures=NoUserMediaRequests"
+                useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                disablewebsecurity="false"
+                disableguestresize="true"
+                disableblinkfeatures="AudioOutputDevices,MediaSession,UserMedia"
+            ></webview>
+
+            <!-- Download Panel -->
+            <div class="download-panel">
+                <div class="download-header">
+                    <h3>Video Download</h3>
+                    <button id="toggleDownloadBtn">▼</button>
+                </div>
+                <div class="download-content">
+                    <div class="download-form">
+                        <input type="text" id="downloadUrl" placeholder="Video URL">
+                        <div class="format-options">
+                            <label>
+                                <input type="radio" name="format" value="mp4" checked> MP4 Video
+                            </label>
+                        </div>
+                        <button id="downloadBtn">Download</button>
+                    </div>
+                    <div class="downloads-list" id="downloadsList">
+                        <!-- Download items will be added here dynamically -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Features Panel -->
+            <div class="features-panel">
+                <div class="features-header">
+                    <h3>Features</h3>
+                    <button id="toggleFeaturesBtn">▼</button>
+                </div>
+                <div class="features-content">
+                    <p class="features-info">
+                        YTView includes the following built-in features:
+                    </p>
+                    <div class="features-list" id="featuresList">
+                        <!-- Feature items will be added here dynamically -->
+                    </div>
+                    <div class="features-actions">
+                        <p class="feature-help">
+                            Toggle features on/off using the switches. Changes take effect immediately.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Template for download item -->
+    <template id="download-item-template">
+        <div class="download-item">
+            <div class="download-title"></div>
+            <div class="download-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+                <div class="progress-text">0%</div>
+            </div>
+            <div class="download-actions">
+                <button class="open-btn" title="Open">📂</button>
+                <button class="folder-btn" title="Show in folder">📁</button>
+            </div>
+        </div>
+    </template>
+    
+    <script src="renderer.js"></script>
+</body>
+</html>

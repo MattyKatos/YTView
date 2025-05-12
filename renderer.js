@@ -14,6 +14,54 @@
   console.log('Aggressive audio blocking initialized in renderer');
 })();
 
+// Set up ad blocking in the renderer through the preload bridge
+// This ensures we maintain access to the window.api object
+
+// Request the main process to enable direct ad blocking for our webview
+// Set up aggressive ad blocking with retry mechanism
+function setupAdBlocking() {
+  console.log('Setting up aggressive ad blocking...');
+  
+  window.api.setupDirectAdBlocking({ 
+    partition: 'persist:ytview',
+    aggressive: true
+  })
+  .then(result => {
+    if (result.success) {
+      console.log('Ad blocking setup complete:', result);
+    } else if (result.fallback) {
+      console.warn('Using fallback ad blocking due to error:', result.error);
+    } else {
+      throw new Error(result.error || 'Unknown error');
+    }
+  })
+  .catch(err => {
+    console.error('Error setting up ad blocking:', err);
+    
+    // Retry with simpler configuration after 2 seconds
+    setTimeout(() => {
+      console.log('Retrying ad blocking setup with simplified configuration...');
+      window.api.setupDirectAdBlocking({ 
+        partition: 'persist:ytview',
+        simplified: true
+      })
+      .then(result => {
+        if (result.success) {
+          console.log('Simplified ad blocking setup complete');
+        } else {
+          console.error('Failed to set up even simplified ad blocking:', result.error);
+        }
+      })
+      .catch(finalErr => {
+        console.error('Final ad blocking setup error:', finalErr);
+      });
+    }, 2000);
+  });
+}
+
+// Call the setup function
+setupAdBlocking();
+
 // Get elements
 const webview = document.getElementById('youtubeView');
 const urlInput = document.getElementById('urlInput');
@@ -22,6 +70,7 @@ const backBtn = document.getElementById('backBtn');
 const forwardBtn = document.getElementById('forwardBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const homeBtn = document.getElementById('homeBtn');
+const devToolsBtn = document.getElementById('devToolsBtn');
 const minimizeBtn = document.getElementById('minimizeBtn');
 const maximizeBtn = document.getElementById('maximizeBtn');
 const closeBtn = document.getElementById('closeBtn');
@@ -31,19 +80,11 @@ const downloadUrl = document.getElementById('downloadUrl');
 const downloadBtn = document.getElementById('downloadBtn');
 const downloadsList = document.getElementById('downloadsList');
 
-// Features panel elements
-const featuresPanel = document.querySelector('.features-panel');
-const toggleFeaturesBtn = document.getElementById('toggleFeaturesBtn');
-const featuresList = document.getElementById('featuresList');
-
 // Store active downloads
 const activeDownloads = new Map();
 
 // Initialize UI
 document.addEventListener('DOMContentLoaded', () => {
-  // Initial state of panels
-  downloadPanel.classList.add('collapsed');
-  featuresPanel.classList.add('collapsed');
   
   // Set up event listeners for window controls
   setupWindowControls();
@@ -51,11 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Set up navigation controls
   setupNavigation();
   
-  // Set up download functionality
-  setupDownloads();
-  
-  // Set up feature settings
-  setupFeatures();
+  // Set up feature navigation and dropdowns
+  setupFeatureNav();
   
   // Set up webview events
   setupWebviewEvents();
@@ -102,12 +140,36 @@ function setupNavigation() {
   
   // Refresh the page
   refreshBtn.addEventListener('click', () => {
+    // Use reload() instead of recreating the webview
     webview.reload();
   });
   
   // Go to YouTube home
   homeBtn.addEventListener('click', () => {
-    webview.src = 'https://www.youtube.com';
+    // Use proper method for loading URLs in Electron webviews
+    webview.loadURL('https://youtube.com');
+  });
+  
+  // Developer tools for debugging
+  devToolsBtn.addEventListener('click', () => {
+    // Direct approach - open dev tools
+    if (webview.openDevTools) {
+      webview.openDevTools();
+      console.log('DevTools opened directly');
+    } else {
+      // Fallback to API if direct method not available
+      window.api.toggleWebviewDevTools()
+        .then(success => {
+          if (success) {
+            console.log('DevTools toggle request successful');
+          } else {
+            console.error('Failed to toggle DevTools');
+          }
+        })
+        .catch(err => {
+          console.error('Error toggling DevTools:', err);
+        });
+    }
   });
 }
 
@@ -134,29 +196,53 @@ function navigateToUrl() {
   webview.src = url;
 }
 
-// Setup download panel functionality
-function setupDownloads() {
-  // Toggle download panel
-  toggleDownloadBtn.addEventListener('click', () => {
-    downloadPanel.classList.toggle('collapsed');
+// Setup the feature navigation dropdowns
+function setupFeatureNav() {
+  // Select all feature toggle buttons
+  const featureButtons = document.querySelectorAll('.feature-toggle-btn');
+  
+  // Handle feature button clicks
+  featureButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const feature = button.getAttribute('data-feature');
+      const dropdown = document.getElementById(`${feature}Dropdown`);
+      
+      // Close all other dropdowns
+      document.querySelectorAll('.feature-dropdown').forEach(el => {
+        if (el.id !== dropdown.id) {
+          el.classList.remove('open');
+        }
+      });
+      
+      // Toggle this dropdown
+      dropdown.classList.toggle('open');
+      button.classList.toggle('active');
+    });
   });
   
-  // Start download when button is clicked
-  downloadBtn.addEventListener('click', startDownload);
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.feature-item')) {
+      document.querySelectorAll('.feature-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('open');
+      });
+      document.querySelectorAll('.feature-toggle-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+    }
+  });
+  
+  // Setup download button click handler
+  const downloadBtn = document.getElementById('downloadBtn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', startDownload);
+  }
   
   // Set up download event listeners from main process
   window.api.onDownloadStarted(handleDownloadStarted);
   window.api.onDownloadProgress(handleDownloadProgress);
   window.api.onDownloadComplete(handleDownloadComplete);
   window.api.onDownloadError(handleDownloadError);
-}
-
-// Setup features panel and controls
-function setupFeatures() {
-  // Toggle features panel
-  toggleFeaturesBtn.addEventListener('click', () => {
-    featuresPanel.classList.toggle('collapsed');
-  });
   
   // Load feature settings initially
   loadFeatureSettings();
@@ -196,65 +282,34 @@ function setupFeatures() {
 
 // Load and display feature settings
 async function loadFeatureSettings() {
-  // Clear existing items
-  featuresList.innerHTML = '';
-  
   try {
-    // Get current feature settings
+    // Get current settings from main process
     const settings = await window.api.getFeatureSettings();
     
-    // Create feature toggles
-    const features = [
-      {
-        id: 'adBlocking',
-        name: 'Ad Blocking',
-        description: 'Block ads on YouTube',
-        enabled: settings.adBlockingEnabled
-      },
-      {
-        id: 'sponsorBlock',
-        name: 'SponsorBlock',
-        description: 'Skip sponsored segments automatically',
-        enabled: settings.sponsorBlockEnabled
-      },
-      {
-        id: 'dearrow',
-        name: 'DeArrow',
-        description: 'Fix clickbait titles and thumbnails',
-        enabled: settings.dearrowEnabled
-      },
-      {
-        id: 'returnDislike',
-        name: 'Return YouTube Dislike',
-        description: 'Show dislike counts on videos',
-        enabled: settings.returnDislikeEnabled
-      }
+    // Update the toggle states in the new dropdown menus
+    const toggles = [
+      { id: 'adBlockingToggle', setting: settings.adBlockingEnabled },
+      { id: 'sponsorBlockToggle', setting: settings.sponsorBlockEnabled },
+      { id: 'dearrowToggle', setting: settings.dearrowEnabled },
+      { id: 'returnDislikeToggle', setting: settings.returnDislikeEnabled }
     ];
     
-    // Populate features list
-    features.forEach(feature => {
-      const featureItem = document.createElement('div');
-      featureItem.className = 'feature-item';
-      
-      featureItem.innerHTML = `
-        <div class="feature-info">
-          <div class="feature-name">${feature.name}</div>
-          <div class="feature-description">${feature.description}</div>
-        </div>
-        <div class="feature-actions">
-          <label class="toggle-switch">
-            <input type="checkbox" class="feature-toggle" id="${feature.id}Toggle" ${feature.enabled ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      `;
-      
-      featuresList.appendChild(featureItem);
+    // Set toggle states based on settings
+    toggles.forEach(({ id, setting }) => {
+      const toggle = document.getElementById(id);
+      if (toggle) {
+        toggle.checked = setting;
+      }
     });
     
-    // Add event listeners for feature toggles
-    document.querySelectorAll('.feature-toggle').forEach(toggle => {
-      toggle.addEventListener('change', async (event) => {
+    // Add event listeners for feature toggles in the dropdowns
+    document.querySelectorAll('input[type="checkbox"][id$="Toggle"]').forEach(toggle => {
+      // Remove existing listeners to avoid duplicates
+      const newToggle = toggle.cloneNode(true);
+      toggle.parentNode.replaceChild(newToggle, toggle);
+      
+      // Add listener to the new toggle
+      newToggle.addEventListener('change', async (event) => {
         const featureId = event.target.id.replace('Toggle', '');
         const enabled = event.target.checked;
         
@@ -277,6 +332,14 @@ async function loadFeatureSettings() {
         }
         
         try {
+          // Show visual feedback while updating
+          const toggleLabel = event.target.closest('.feature-toggle-container')?.querySelector('.toggle-label');
+          const originalText = toggleLabel ? toggleLabel.textContent : '';
+          
+          if (toggleLabel) {
+            toggleLabel.textContent = 'Updating...';
+          }
+          
           // Update settings
           const result = await window.api.updateFeatureSettings(settingsUpdate);
           
@@ -286,7 +349,16 @@ async function loadFeatureSettings() {
               type: 'update-settings',
               data: settingsUpdate
             }, '*');
+            
+            // Update toggle label with success indication briefly
+            if (toggleLabel) {
+              toggleLabel.textContent = 'Updated!';
+              setTimeout(() => {
+                toggleLabel.textContent = originalText;
+              }, 1500);
+            }
           } else {
+            if (toggleLabel) toggleLabel.textContent = originalText;
             showAlert(`Error: ${result.error}`);
             // Revert toggle if there was an error
             event.target.checked = !enabled;
@@ -299,9 +371,11 @@ async function loadFeatureSettings() {
         }
       });
     });
+    
+    console.log('Feature settings loaded and applied to dropdowns');
   } catch (error) {
     console.error('Error loading feature settings:', error);
-    featuresList.innerHTML = `<div class="feature-error">Error loading feature settings: ${error.message || 'Unknown error'}</div>`;
+    showAlert(`Error loading settings: ${error.message || 'Unknown error'}`);
   }
 }
 
@@ -355,13 +429,34 @@ async function fetchDislikeData(videoId) {
 
 // Setup webview events
 function setupWebviewEvents() {
-  // When webview finishes loading
-  webview.addEventListener('did-finish-load', () => {
-    // Update URL input with current URL
-    urlInput.value = webview.getURL();
-    
-    // Update navigation buttons state
+  // Update navigation buttons state and address bar when webview loads
+  webview.addEventListener('did-finish-load', async () => {
     updateNavigationState();
+    // Update address bar with current URL
+    updateAddressBar(webview.getURL());
+    
+    // IMPORTANT: Send current settings to webview every time it loads
+    // This ensures ad blocking and other features work immediately
+    try {
+      const settings = await window.api.getFeatureSettings();
+      console.log('Sending initial settings to webview:', settings);
+      
+      // Send settings to webview preload script
+      webview.contentWindow.postMessage({
+        type: 'update-settings',
+        data: settings
+      }, '*');
+      
+      // Ensure ad blocking is initialized if enabled
+      if (settings.adBlockingEnabled) {
+        console.log('Ad blocking enabled - ensuring initialization');
+        webview.contentWindow.postMessage({
+          type: 'initialize-ad-blocking'
+        }, '*');
+      }
+    } catch (error) {
+      console.error('Error sending initial settings to webview:', error);
+    }
     
     // Get current video URL if we're on a video page
     webview.executeJavaScript(`
@@ -377,9 +472,27 @@ function setupWebviewEvents() {
     });
   });
   
-  // When webview's URL changes
-  webview.addEventListener('did-navigate', () => {
-    urlInput.value = webview.getURL();
+  // Update navigation buttons state when webview starts loading
+  webview.addEventListener('did-start-loading', () => {
+    document.body.classList.add('loading');
+    updateNavigationState();
+  });
+  
+  // Update navigation buttons state when webview stops loading
+  webview.addEventListener('did-stop-loading', () => {
+    document.body.classList.remove('loading');
+    updateNavigationState();
+  });
+  
+  // Update address bar when navigation occurs within the webview
+  webview.addEventListener('did-navigate', (event) => {
+    updateAddressBar(event.url);
+    updateNavigationState();
+  });
+  
+  // Also update on in-page navigation (like YouTube's SPA navigation)
+  webview.addEventListener('did-navigate-in-page', (event) => {
+    updateAddressBar(event.url);
     updateNavigationState();
   });
   
@@ -410,6 +523,13 @@ function setupWebviewEvents() {
 function updateNavigationState() {
   backBtn.disabled = !webview.canGoBack();
   forwardBtn.disabled = !webview.canGoForward();
+}
+
+// Update address bar with current URL
+function updateAddressBar(url) {
+  if (url && url !== 'about:blank') {
+    urlInput.value = url;
+  }
 }
 
 // Start download process

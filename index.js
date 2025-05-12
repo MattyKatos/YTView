@@ -1,413 +1,398 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electron');
+// YTView Main Process - Modular Version
+const { app, session, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const ytdl = require('ytdl-core');
-const axios = require('axios');
-const fetch = require('node-fetch');
 
-// Import our ad-blocker script
-const { adBlockerScript } = require('./ad-blocker.js');
+// Import our modules
+const initSettingsManager = require('./modules/settings-manager');
+const initApiManager = require('./modules/api-manager');
+const initWindowManager = require('./modules/window-manager');
+const initNetworkAdBlocker = require('./modules/network-ad-blocker');
+const initAdBlocker = require('./modules/ad-blocker');
+const initIpcManager = require('./modules/ipc-manager');
 
-// API endpoints for direct integrations
-const API = {
-  SPONSORBLOCK: 'https://sponsor.ajay.app/api/',
-  DEARROW: 'https://sponsor.ajay.app/api/branding/', // DeArrow API
-  RETURN_DISLIKE: 'https://returnyoutubedislikesapi.com/votes?videoId='
-};
+// Initialize Settings Manager
+const settingsManager = initSettingsManager();
 
-let mainWindow;
+// Initialize API Manager
+const apiManager = initApiManager();
 
-// Create a store for app settings and cached data
-const settingsStore = {};
-const cacheStore = new Map();
+// Initialize Window Manager
+const windowManager = initWindowManager({
+  width: 1280,
+  height: 800,
+  minWidth: 800,
+  minHeight: 600,
+  frame: false,
+  webPreferences: {
+    nodeIntegration: false,
+    contextIsolation: true,
+    preload: path.join(__dirname, 'preload.js'),
+    webviewTag: true,
+    webSecurity: true
+  }
+});
 
-// Very minimal ad blocking that won't interfere with video playback
-const adBlockFilterLists = {
-  // Only the most basic ad network domains
-  youtubeAds: [
-    'https://securepubads.g.doubleclick.net/*',
-    'https://pubads.g.doubleclick.net/*',
-    'https://googleads.g.doubleclick.net/*'
-  ]
-};
+// Initialize Network Ad Blocker
+const networkAdBlocker = initNetworkAdBlocker(settingsManager);
 
-// Setup minimal ad blocking
-function setupAdBlocking(session) {
-  if (!session) return;
+// Initialize Client-side Ad Blocker
+const adBlocker = initAdBlocker(settingsManager.getSetting ? settingsManager.getSetting('adBlockingEnabled', true) : true);
+
+// Initialize IPC Manager (after we have all dependencies)
+const ipcManager = initIpcManager({
+  settingsManager,
+  apiManager,
+  windowManager,
+  networkAdBlocker,
+  adBlocker
+});
+
+// Initialize networking and ad blocking first, before any app initialization
+app.whenReady().then(async () => {
+  console.log('YTView starting - initializing ad blocking first');
   
-  // Only block a very limited set of known ad domains
-  session.webRequest.onBeforeRequest({ urls: adBlockFilterLists.youtubeAds }, (details, callback) => {
-    // Block these specific ad requests
-    if (settingsStore.adBlockingEnabled !== false) {
-      console.log(`Blocked ad request: ${details.url.substring(0, 50)}...`);
-      callback({ cancel: true });
-    } else {
-      callback({ cancel: false });
-    }
-  });
+  // Force session creation with aggressive blocking BEFORE ANY WINDOWS CREATED
+  // This is critical: we must intercept request events before content starts loading
+  console.log('Setting up network-level ad blocking for all sessions...');
   
-  console.log('Basic ad blocking initialized');
-}
-
-// Function to fetch SponsorBlock segments for a video
-async function getSponsorBlockSegments(videoId, categories = ['sponsor']) {
   try {
-    // Cache key for this request
-    const cacheKey = `sb_${videoId}_${categories.join('_')}`;
+    // Initialize default session blocking synchronously to ensure it's ready
+    console.log('Initializing default session blocking...');
+    await networkAdBlocker.setupAdBlocking(session.defaultSession);
     
-    // Check cache first
-    if (cacheStore.has(cacheKey)) {
-      return cacheStore.get(cacheKey);
-    }
+    // Set up the YouTube-specific webview partition
+    const ytSession = session.fromPartition('persist:ytview', { cache: false });
+    console.log('Initializing YouTube webview session blocking...');
+    await networkAdBlocker.setupAdBlocking(ytSession);
     
-    // Make the API request
-    const response = await axios.get(`${API.SPONSORBLOCK}/skipSegments`, {
-      params: { videoID: videoId, categories: JSON.stringify(categories) }
+    // Additional emergency session protection with detailed logging
+    // Some ads use a different partition
+    console.log('Adding emergency protection for other sessions...');
+    session.defaultSession.webRequest.onBeforeRequest(
+      { urls: ['*://*.googlesyndication.com/*', '*://*.doubleclick.net/*', '*://www.youtube.com/api/stats/ads*'] },
+      (details, callback) => { 
+        // Extract domain for the log
+        let domain;
+        try {
+          domain = new URL(details.url).hostname;
+        } catch (e) {
+          domain = details.url.split('/')[2] || 'unknown';
+        }
+        console.log(`⛔ EMERGENCY BLOCKED: ${domain} (${details.url.substring(0, 60)}...)`);
+        callback({cancel: true}); 
+      }
+    );
+    
+    // Set session flags to disable cache and persistence
+    ytSession.clearCache().then(() => {
+      console.log('YouTube session cache cleared');
+    }).catch(err => {
+      console.error('Error clearing cache:', err);
     });
     
-    // Cache the result
-    cacheStore.set(cacheKey, response.data);
+    console.log('=======================================');
+    console.log('🚫 AD BLOCKING INITIALIZED SUCCESSFULLY! 🚫');
+    console.log('🔴 ALL AD REQUESTS WILL BE LOGGED 🔴');
+    console.log('=======================================');
     
-    return response.data;
+    // Now we can safely start the app
+    console.log('\nYTView started with native API integrations');
+    console.log('- Network-level Ad Blocking');
+    console.log('- SponsorBlock: Skip sponsored segments');
+    console.log('- DeArrow: Better titles and thumbnails');
+    console.log('- Return YouTube Dislike: See dislikes');
+
+    // Create the main window after ad blocking is set up
+    const mainWindow = windowManager.createMainWindow();
+    
+    // Show stats after 5 seconds
+    setTimeout(() => {
+      console.log('\n🔍 Initial ad blocker stats:');
+      networkAdBlocker.printBlockStats();
+    }, 5000);
   } catch (error) {
-    console.error('Error fetching SponsorBlock segments:', error.message);
-    return [];
+    console.error('Error setting up ad blocking:', error);
+    // Create the window anyway in case of error
+    const mainWindow = windowManager.createMainWindow();
   }
-}
-
-// Function to fetch DeArrow data for a video
-async function getDeArrowData(videoId) {
-  try {
-    // Cache key for this request
-    const cacheKey = `da_${videoId}`;
-    
-    // Check cache first
-    if (cacheStore.has(cacheKey)) {
-      return cacheStore.get(cacheKey);
-    }
-    
-    // Make the API request
-    const response = await axios.get(`${API.DEARROW}?videoID=${videoId}`);
-    
-    // Cache the result
-    cacheStore.set(cacheKey, response.data);
-    
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching DeArrow data:', error.message);
-    return null;
-  }
-}
-
-// Function to fetch Return YouTube Dislike data
-async function getDislikeCount(videoId) {
-  try {
-    // Cache key for this request
-    const cacheKey = `dislikes_${videoId}`;
-    
-    // Check cache first
-    if (cacheStore.has(cacheKey)) {
-      return cacheStore.get(cacheKey);
-    }
-    
-    // Make the API request
-    const response = await fetch(`${API.RETURN_DISLIKE}${videoId}`);
-    const data = await response.json();
-    
-    // Cache the result
-    cacheStore.set(cacheKey, data);
-    
-    return data;
-  } catch (error) {
-    console.error('Error fetching dislike count:', error.message);
-    return null;
-  }
-}
-
-function createWindow() {
-  // Create the browser window
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-      webviewTag: true,
-      sandbox: false,
-      // Enable webRequest API for ad blocking
-      webSecurity: true,
-      // Explicitly disable any media access to prevent Bluetooth switching to call mode
-      autoplayPolicy: 'document-user-activation-required',
-    },
-    icon: path.join(__dirname, 'icon.png'),
-    title: 'YTView',
-    // Set the frame to false for a custom title bar
-    frame: false
-  });
-
-  console.log('YTView started with native API integrations');
-  console.log('- Network-level Ad Blocking');
-  console.log('- SponsorBlock: Skip sponsored segments');
-  console.log('- DeArrow: Better titles and thumbnails');
-  console.log('- Return YouTube Dislike: See dislikes');
-
-  // Set up ad blocking for the main window
-  setupAdBlocking(mainWindow.webContents.session);
   
-  // Set up a webRequest handler for the default session (used by webviews)
-  setupAdBlocking(session.defaultSession);
-  
-  // Set up event listener to handle webviews
-  mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
-    // Apply network-level ad blocking to each webview
-    setupAdBlocking(webContents.session);
-    console.log('Network-level ad blocking applied to webview');
+  // Set up IPC handlers
+  ipcManager.setupHandlers();
+
+  // DIRECT WEBVIEW AD BLOCKING
+  // Handle requests from renderer to set up direct webview blocking
+  // DIRECT WEBVIEW AD BLOCKING - Enhanced version with better error handling
+  ipcMain.handle('setup-direct-webview-blocking', async (event, data) => {
+    // Track start time for performance logging
+    const startTime = Date.now();
+    try {
+      console.log('\n-----------------------------------------');
+      console.log('🔥 SETTING UP DIRECT WEBVIEW AD BLOCKING 🔥');
+      console.log('-----------------------------------------');
+      
+      const partition = data.partition || 'persist:ytview';
+      const webviewSession = session.fromPartition(partition);
     
-    // Disable audio worklets and media permissions
-    webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-      // Deny all media-related permissions
-      if (permission === 'media' || 
-          permission === 'microphone' || 
-          permission === 'camera' || 
-          permission === 'audio-capture' || 
-          permission === 'video-capture') {
-        console.log(`Denied permission request: ${permission}`);
-        return callback(false);
+      // Use simplified patterns if requested
+      const useSimplifiedPatterns = data.simplified === true;
+      
+      // Core YouTube ad patterns to block - EXPANDED LIST
+      let adPatterns = [];
+      
+      if (useSimplifiedPatterns) {
+        // Use a smaller, more reliable set of patterns
+        adPatterns = [
+          '*://*.doubleclick.net/*',
+          '*://*.googlesyndication.com/*',
+          '*://www.youtube.com/api/stats/ads*',
+          '*://www.youtube.com/pagead/*',
+          '*://ad.youtube.com/*',
+          '*://ads.youtube.com/*'
+        ];
+      } else {
+        // Use the full set of patterns
+        adPatterns = [
+          // Standard ad domains
+          '*://*.doubleclick.net/*',
+          '*://*.googlesyndication.com/*',
+          '*://*.googleadservices.com/*',
+          '*://*.google-analytics.com/*',
+          '*://*.googletagservices.com/*',
+          '*://*.googletagmanager.com/*',
+          '*://*.moatads.com/*',
+          '*://*.adsystem.com/*',
+          '*://*.adservice.google.com/*',
+          '*://googleads.g.doubleclick.net/*',
+          '*://*.ggpht.com/*.svg',
+          
+          // YouTube-specific ad domains and paths
+          '*://www.youtube.com/api/stats/ads*',
+          '*://www.youtube.com/pagead/*',
+          '*://www.youtube.com/ptracking*',
+          '*://www.youtube.com/youtubei/v1/log_event*',
+          '*://www.youtube.com/generate_204*',
+          '*://www.youtube.com/error_204*',
+          '*://www.youtube.com/get_midroll_*',
+          '*://www.youtube.com/api/stats/delayplay*',
+          '*://www.youtube.com/api/stats/watchtime*',
+          '*://ad.youtube.com/*',
+          '*://ads.youtube.com/*',
+          '*://s.youtube.com/api/stats/qoe*',
+          '*://i.ytimg.com/vi/*/hqdefault_live.jpg*',
+          
+          // Common ad tracking parameters - using specific domains to avoid invalid patterns
+          '*://www.youtube.com/*&ad_type=*',
+          '*://www.youtube.com/*&adurl=*',
+          '*://www.youtube.com/*?adurl=*',
+          '*://www.youtube.com/*&adformat=*',
+          '*://www.youtube.com/*?adformat=*'
+        ];
       }
       
-      // Allow other permissions
-      callback(true);
-    });
-    
-    // Inject our audio fixer script before anything else runs
-    const audioFixerScript = `
-      // Aggressive audio context blocking
-      window.AudioContext = window.webkitAudioContext = function() {
-        throw new Error('AudioContext creation blocked by YTView to prevent Bluetooth mode switching');
-      };
-      navigator.mediaDevices = undefined;
-      console.log('YTView: Aggressive media blocking enabled');
-    `;
-    
-    // Run this on page start and on each navigation
-    const injectScripts = () => {
-      // First the audio fixer
-      webContents.executeJavaScript(audioFixerScript, true)
-        .catch(err => console.error('Failed to inject audio fixer:', err));
+      // Set up direct blocking on webview session - use smaller batches of patterns to avoid errors
+      // Split patterns into smaller groups to avoid potential issues with too many patterns
+      const patternGroups = [];
+      const groupSize = 10;
       
-      // Then the ad blocker
-      webContents.executeJavaScript(adBlockerScript)
-        .then(() => console.log('Ad blocker script injected'))
-        .catch(err => console.error('Failed to inject ad blocker:', err));
-    };
-    
-    // Run on initial page load
-    webContents.on('dom-ready', injectScripts);
-    
-    // Run on navigation within the webview
-    webContents.on('did-navigate', injectScripts);
-    
-    // Run when page is refreshed
-    webContents.on('did-start-loading', () => {
-      webContents.executeJavaScript(audioFixerScript, true)
-        .catch(err => console.error('Failed to inject audio fixer on refresh:', err));
-    });
-  });
+      for (let i = 0; i < adPatterns.length; i += groupSize) {
+        patternGroups.push(adPatterns.slice(i, i + groupSize));
+      }
+      
+      // Apply each group of patterns separately
+      patternGroups.forEach((patterns, index) => {
+        webviewSession.webRequest.onBeforeRequest(
+          { urls: patterns },
+          (details, callback) => {
+            // Extract domain for logging
+            let domain;
+            try {
+              domain = new URL(details.url).hostname;
+            } catch (e) {
+              domain = details.url.split('/')[2] || 'unknown';
+            }
+            
+            // EXTREMELY PROMINENT LOGGING
+            const message = `
 
-  // Load the index.html
-  mainWindow.loadFile('index.html');
-
-  // Open DevTools in development
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
-  }
-}
-
-// Create window when Electron is ready
-app.whenReady().then(() => {
-  createWindow();
-
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
-
-// Quit when all windows are closed, except on macOS
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit();
-});
-
-// Handle video download request
-ipcMain.handle('download-video', async (event, url, format, savePath) => {
-  try {
-    if (!ytdl.validateURL(url)) {
-      return { success: false, error: 'Invalid YouTube URL' };
-    }
-
-    const info = await ytdl.getInfo(url);
-    const videoTitle = info.videoDetails.title.replace(/[^\w\s]/gi, '');
-    
-    // If savePath is not provided, ask the user
-    if (!savePath) {
-      const defaultPath = app.getPath('downloads');
-      const result = await dialog.showSaveDialog({
-        title: 'Save Video',
-        defaultPath: path.join(defaultPath, `${videoTitle}.mp4`),
-        filters: [{ name: 'Video', extensions: ['mp4'] }]
+==================================================
+🔴🔴🔴 AD BLOCKED: ${domain} 🔴🔴🔴
+${details.url}
+==================================================
+`;
+            
+            console.log(message);
+            
+            // Also log to main window console
+            if (event.sender && !event.sender.isDestroyed()) {
+              event.sender.send('ad-blocked', {
+                domain,
+                url: details.url
+              });
+            }
+            
+            // Force log to stdout as well
+            process.stdout.write(message + '\n');
+            
+            callback({ cancel: true });
+          }
+        );
+        console.log(`Pattern group ${index + 1}/${patternGroups.length} applied successfully`);
       });
       
-      if (result.canceled) {
-        return { success: false, error: 'Download canceled' };
+      // Add keyword-based blocking as catch-all
+      webviewSession.webRequest.onBeforeRequest(
+        { urls: ['*://*/*'] },
+        (details, callback) => {
+          const url = details.url.toLowerCase();
+          
+          // Skip processing non-ad related URLs for performance
+          if (!url.includes('ad') && 
+              !url.includes('track') && 
+              !url.includes('analytics') && 
+              !url.includes('pagead')) {
+            callback({ cancel: false });
+            return;
+          }
+          
+          // Check for ad keywords in URL
+          const shouldBlock = url.includes('/ad/') || 
+              url.includes('/ads/') || 
+              url.includes('/advert/') || 
+              url.includes('doubleclick') ||
+              url.includes('googleadservices') ||
+              url.includes('googlesyndication') ||
+              url.includes('youtube.com/pagead/') ||
+              url.includes('youtube.com/api/stats/ads') ||
+              url.includes('adformat=');
+          
+          if (shouldBlock) {
+            // Extract domain 
+            let domain;
+            try {
+              domain = new URL(details.url).hostname;
+            } catch (e) {
+              domain = details.url.split('/')[2] || 'unknown';
+            }
+            
+            console.log(`🚫 KEYWORD BLOCK: ${domain} (${details.url.substring(0, 60)}...)`);
+            
+            // Send back to renderer for display
+            if (event.sender && !event.sender.isDestroyed()) {
+              event.sender.send('ad-blocked', {
+                domain,
+                url: details.url
+              });
+            }
+            
+            callback({ cancel: true });
+          } else {
+            callback({ cancel: false });
+          }
+        }
+      );
+      
+      // Add a specific handler for YouTube ad parameters in videoplayback URLs
+      webviewSession.webRequest.onBeforeRequest(
+        { urls: ['*://*.googlevideo.com/videoplayback*', '*://*.youtube.com/videoplayback*'] },
+        (details, callback) => {
+          const url = details.url.toLowerCase();
+          const isAdVideo = url.includes('&adt=') || 
+                          url.includes('&adformat=') || 
+                          url.includes('&afc=') || 
+                          url.includes('&adurl=') || 
+                          url.includes('&ad_type=');
+          
+          if (isAdVideo) {
+            console.log(`🔴 BLOCKED AD VIDEO: ${url.substring(0, 100)}...`);
+            callback({ cancel: true });
+          } else {
+            callback({ cancel: false });
+          }
+        }
+      );
+      
+      // If aggressive mode is requested, add additional handlers
+      if (data.aggressive === true) {
+        // Block all googlevideo.com requests that contain ad indicators
+        webviewSession.webRequest.onBeforeRequest(
+          { urls: ['*://*.googlevideo.com/*'] },
+          (details, callback) => {
+            const url = details.url.toLowerCase();
+            // Check for ad-specific parameters in the URL
+            if (url.includes('&adt=') || 
+                url.includes('&adformat=') || 
+                url.includes('&afc=') || 
+                url.includes('&adurl=') || 
+                url.includes('&ad_type=') ||
+                url.includes('/ad/') ||
+                url.includes('/ads/')) {
+              console.log(`🔴 BLOCKED GOOGLEVIDEO AD: ${url.substring(0, 80)}...`);
+              callback({ cancel: true });
+            } else {
+              callback({ cancel: false });
+            }
+          }
+        );
       }
       
-      savePath = result.filePath;
+      const setupTime = Date.now() - startTime;
+      console.log(`✅ Direct webview ad blocking activated successfully! (${setupTime}ms)`);
+      return { 
+        success: true, 
+        setupTime,
+        patternCount: adPatterns.length,
+        simplified: useSimplifiedPatterns,
+        aggressive: data.aggressive === true
+      };
+    } catch (error) {
+      console.error('Error setting up direct webview blocking:', error);
+      
+      // Try to set up at least basic ad blocking even if the full setup failed
+      try {
+        // Set up a minimal set of critical patterns
+        const criticalPatterns = [
+          '*://*.doubleclick.net/*',
+          '*://*.googlesyndication.com/*',
+          '*://www.youtube.com/api/stats/ads*',
+          '*://www.youtube.com/pagead/*'
+        ];
+        
+        webviewSession.webRequest.onBeforeRequest(
+          { urls: criticalPatterns },
+          (details, callback) => {
+            console.log(`⛔ FALLBACK BLOCKED: ${details.url.substring(0, 100)}...`);
+            callback({ cancel: true });
+          }
+        );
+        
+        console.log('Fallback ad blocking set up after error');
+        return { success: true, fallback: true, error: error.message };
+      } catch (fallbackError) {
+        console.error('Even fallback ad blocking failed:', fallbackError);
+        return { success: false, error: error.message };
+      }
     }
-
-    // Return immediately with success=true to let the UI know we started the download
-    event.sender.send('download-started', { url, savePath });
-
-    // For now, we only support MP4 without ffmpeg
-    const videoStream = ytdl(url, { 
-      quality: 'highest'
-    });
-    
-    videoStream.pipe(fs.createWriteStream(savePath));
-    
-    videoStream.on('progress', (_, downloaded, total) => {
-      const percent = downloaded && total ? Math.round((downloaded / total) * 100) : 0;
-      event.sender.send('download-progress', { url, progress: percent });
-    });
-    
-    videoStream.on('end', () => {
-      event.sender.send('download-complete', { url, savePath });
-    });
-    
-    videoStream.on('error', (err) => {
-      console.error('Download error:', err);
-      event.sender.send('download-error', { url, error: err.message });
-    });
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error in download-video:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Open downloaded file in default app
-ipcMain.handle('open-file', async (event, filePath) => {
-  try {
-    await shell.openPath(filePath);
-    return { success: true };
-  } catch (error) {
-    console.error('Error opening file:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Show file in folder
-ipcMain.handle('show-in-folder', async (event, filePath) => {
-  try {
-    await shell.showItemInFolder(filePath);
-    return { success: true };
-  } catch (error) {
-    console.error('Error showing file in folder:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Window control handlers
-ipcMain.handle('minimize-window', () => {
-  if (mainWindow) {
-    mainWindow.minimize();
-    return { success: true };
-  }
-  return { success: false, error: 'Window not available' };
-});
-
-ipcMain.handle('maximize-window', () => {
-  if (mainWindow) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
+  });
+  
+  // Load initial settings
+  settingsManager.loadSettings();
+  
+  app.on('activate', () => {
+    // On macOS, recreate the window when the dock icon is clicked
+    if (BrowserWindow.getAllWindows().length === 0) {
+      windowManager.createMainWindow();
     }
-    return { success: true };
-  }
-  return { success: false, error: 'Window not available' };
+  });
 });
 
-ipcMain.handle('close-window', () => {
-  if (mainWindow) {
-    mainWindow.close();
-    return { success: true };
-  }
-  return { success: false, error: 'Window not available' };
-});
-
-// SponsorBlock API handler
-ipcMain.handle('get-sponsor-segments', async (event, videoId, categories) => {
-  try {
-    const segments = await getSponsorBlockSegments(videoId, categories);
-    return { success: true, segments };
-  } catch (error) {
-    console.error('Error in get-sponsor-segments:', error);
-    return { success: false, error: error.message };
+// Quit when all windows are closed (except on macOS)
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
   }
 });
 
-// DeArrow API handler
-ipcMain.handle('get-dearrow-data', async (event, videoId) => {
-  try {
-    const data = await getDeArrowData(videoId);
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error in get-dearrow-data:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Return YouTube Dislike API handler
-ipcMain.handle('get-dislike-count', async (event, videoId) => {
-  try {
-    const data = await getDislikeCount(videoId);
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error in get-dislike-count:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Ad blocking toggle (simple settings toggle for now)
-ipcMain.handle('toggle-ad-blocking', async (event, enabled) => {
-  try {
-    settingsStore.adBlockingEnabled = enabled;
-    return { success: true, enabled };
-  } catch (error) {
-    console.error('Error toggling ad blocking:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Get all feature settings
-ipcMain.handle('get-feature-settings', async () => {
-  return {
-    adBlockingEnabled: settingsStore.adBlockingEnabled ?? true,
-    sponsorBlockEnabled: settingsStore.sponsorBlockEnabled ?? true,
-    dearrowEnabled: settingsStore.dearrowEnabled ?? true,
-    returnDislikeEnabled: settingsStore.returnDislikeEnabled ?? true
-  };
-});
-
-// Update feature settings
-ipcMain.handle('update-feature-settings', async (event, settings) => {
-  try {
-    // Update settings
-    Object.assign(settingsStore, settings);
-    return { success: true, settings: settingsStore };
-  } catch (error) {
-    console.error('Error updating settings:', error);
-    return { success: false, error: error.message };
-  }
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });

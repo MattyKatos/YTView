@@ -1,3 +1,7 @@
+// YTView Preload Script - Modular Version
+// This script runs in the Electron context and provides a secure bridge between 
+// the renderer process and the main process
+
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Block audio contexts to prevent Bluetooth headphones from switching modes
@@ -15,90 +19,92 @@ const { contextBridge, ipcRenderer } = require('electron');
   }
 })();
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
-contextBridge.exposeInMainWorld(
-  'api', {
-    // Video download functions
-    downloadVideo: (url, format, savePath) => {
-      return ipcRenderer.invoke('download-video', url, format, savePath);
-    },
-    
-    // File operations
-    openFile: (filePath) => {
-      return ipcRenderer.invoke('open-file', filePath);
-    },
-    
-    showInFolder: (filePath) => {
-      return ipcRenderer.invoke('show-in-folder', filePath);
-    },
-    
-    // Download event listeners
-    onDownloadStarted: (callback) => {
-      ipcRenderer.on('download-started', (_, data) => callback(data));
-    },
-    
-    onDownloadProgress: (callback) => {
-      ipcRenderer.on('download-progress', (_, data) => callback(data));
-    },
-    
-    onDownloadComplete: (callback) => {
-      ipcRenderer.on('download-complete', (_, data) => callback(data));
-    },
-    
-    onDownloadError: (callback) => {
-      ipcRenderer.on('download-error', (_, data) => callback(data));
-    },
-    
-    // Remove event listeners when they're no longer needed
-    removeAllListeners: () => {
-      ipcRenderer.removeAllListeners('download-started');
-      ipcRenderer.removeAllListeners('download-progress');
-      ipcRenderer.removeAllListeners('download-complete');
-      ipcRenderer.removeAllListeners('download-error');
-    },
-    
-    // Window control functions
-    minimizeWindow: () => {
-      ipcRenderer.invoke('minimize-window');
-    },
-    
-    maximizeWindow: () => {
-      ipcRenderer.invoke('maximize-window');
-    },
-    
-    closeWindow: () => {
-      ipcRenderer.invoke('close-window');
-    },
-    
-    // API integration functions for SponsorBlock, DeArrow, Return YouTube Dislike, etc.
-    // SponsorBlock
-    getSponsorSegments: (videoId, categories) => {
-      return ipcRenderer.invoke('get-sponsor-segments', videoId, categories);
-    },
-    
-    // DeArrow
-    getDeArrowData: (videoId) => {
-      return ipcRenderer.invoke('get-dearrow-data', videoId);
-    },
-    
-    // Return YouTube Dislike
-    getDislikeCount: (videoId) => {
-      return ipcRenderer.invoke('get-dislike-count', videoId);
-    },
-    
-    // Toggle ad blocking
-    toggleAdBlocking: (enabled) => {
-      return ipcRenderer.invoke('toggle-ad-blocking', enabled);
-    },
-    
-    // Get and update feature settings
-    getFeatureSettings: () => {
-      return ipcRenderer.invoke('get-feature-settings');
-    },
-    
-    updateFeatureSettings: (settings) => {
-      return ipcRenderer.invoke('update-feature-settings', settings);
-    }
+// Expose protected methods to the renderer process
+contextBridge.exposeInMainWorld('api', {
+  //====================
+  // Window Controls
+  //====================
+  minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
+  maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
+  closeWindow: () => ipcRenderer.invoke('close-window'),
+  
+  //====================
+  // Feature Settings
+  //====================
+  getFeatureSettings: () => ipcRenderer.invoke('get-feature-settings'),
+  updateFeatureSettings: (settings) => ipcRenderer.invoke('update-feature-settings', settings),
+  
+  //====================
+  // Developer Tools
+  //====================
+  toggleWebviewDevTools: () => ipcRenderer.invoke('toggle-webview-devtools'),
+  
+  //====================
+  // Ad Blocking
+  //====================
+  setupDirectAdBlocking: (options) => ipcRenderer.invoke('setup-direct-webview-blocking', options),
+  
+  //====================
+  // API Integrations
+  //====================
+  
+  // SponsorBlock
+  getSponsorSegments: (videoId) => ipcRenderer.invoke('get-sponsor-segments', videoId),
+  
+  // DeArrow
+  getDeArrowData: (videoId) => ipcRenderer.invoke('get-dearrow-data', videoId),
+  
+  // Return YouTube Dislike
+  getDislikeCount: (videoId) => ipcRenderer.invoke('get-dislike-count', videoId),
+  
+  //====================
+  // Download Functions
+  //====================
+  selectDownloadLocation: () => ipcRenderer.invoke('select-download-location'),
+  
+  downloadVideo: (options) => ipcRenderer.invoke('download-video', options),
+  
+  openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
+  
+  //====================
+  // Download Events
+  //====================
+  onDownloadStarted: (callback) => {
+    // Remove any existing listeners to avoid duplicates
+    ipcRenderer.removeAllListeners('download-started');
+    // Add new listener
+    ipcRenderer.on('download-started', (_, data) => callback(data));
+  },
+  
+  onDownloadProgress: (callback) => {
+    // Remove any existing listeners to avoid duplicates
+    ipcRenderer.removeAllListeners('download-progress');
+    // Add new listener
+    ipcRenderer.on('download-progress', (_, data) => callback(data));
+  },
+  
+  onDownloadComplete: (callback) => {
+    // Remove any existing listeners to avoid duplicates
+    ipcRenderer.removeAllListeners('download-complete');
+    // Add new listener
+    ipcRenderer.on('download-complete', (_, data) => callback(data));
+  },
+  
+  onDownloadError: (callback) => {
+    // Remove any existing listeners to avoid duplicates
+    ipcRenderer.removeAllListeners('download-error');
+    // Add new listener
+    ipcRenderer.on('download-error', (_, data) => callback(data));
+  },
+  
+  //====================
+  // Cleanup Functions
+  //====================
+  removeAllListeners: () => {
+    ipcRenderer.removeAllListeners('download-started');
+    ipcRenderer.removeAllListeners('download-progress');
+    ipcRenderer.removeAllListeners('download-complete');
+    ipcRenderer.removeAllListeners('download-error');
+    ipcRenderer.removeAllListeners('ad-blocked');
   }
-);
+});

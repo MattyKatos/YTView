@@ -41,21 +41,15 @@ const adBlockerScript = `
         skipButton.click();
       }
       
-      // Mute during ads
-      if (!videoElement.muted) {
-        videoElement.muted = true;
-        log('Ad muted');
-      }
+      // No longer muting ads to avoid Bluetooth audio profile switching
+      log('Ad detected - skipping if possible');
     } else if (!isAdPlaying && adDetected) {
       // Ad finished playing - restore normal playback
       adDetected = false;
       log('Ad finished');
       
-      // Unmute when ad is done
-      if (videoElement.muted) {
-        videoElement.muted = false;
-        log('Video unmuted');
-      }
+      // No audio manipulation needed - we're not muting ads anymore
+      log('Ad finished');
       
       // Reset playback rate
       videoElement.playbackRate = 1;

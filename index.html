@@ -15,6 +15,7 @@
                 <button class="nav-btn" id="forwardBtn" title="Forward">➡️</button>
                 <button class="nav-btn" id="refreshBtn" title="Refresh">🔄</button>
                 <button class="nav-btn" id="homeBtn" title="Home">🏠</button>
+                <button class="nav-btn" id="devToolsBtn" title="Developer Tools">🛠️</button>
             </div>
             <div class="url-bar">
                 <input type="text" id="urlInput" placeholder="Enter YouTube URL or search...">
@@ -26,6 +27,143 @@
                 <button id="closeBtn" class="window-control">✖</button>
             </div>
         </header>
+        
+        <!-- Feature Navigation Bar -->
+        <nav class="feature-nav">
+            <ul class="feature-menu">
+                <!-- Ad Blocking Dropdown -->
+                <li class="feature-item">
+                    <button class="feature-toggle-btn" data-feature="adBlocking">
+                        <span class="feature-icon">🛡️</span>
+                        <span class="feature-name">Ad Blocking</span>
+                        <span class="feature-arrow">▼</span>
+                    </button>
+                    <div class="feature-dropdown" id="adBlockingDropdown">
+                        <div class="feature-dropdown-header">
+                            <h3>Ad Blocking</h3>
+                        </div>
+                        <div class="feature-dropdown-content">
+                            <div class="feature-toggle-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="adBlockingToggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span class="toggle-label">Enable Ad Blocking</span>
+                            </div>
+                            <div class="feature-settings">
+                                <p class="feature-description">Block ads and prevent them from loading.</p>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                
+                <!-- SponsorBlock Dropdown -->
+                <li class="feature-item">
+                    <button class="feature-toggle-btn" data-feature="sponsorBlock">
+                        <span class="feature-icon">⏭️</span>
+                        <span class="feature-name">SponsorBlock</span>
+                        <span class="feature-arrow">▼</span>
+                    </button>
+                    <div class="feature-dropdown" id="sponsorBlockDropdown">
+                        <div class="feature-dropdown-header">
+                            <h3>SponsorBlock</h3>
+                        </div>
+                        <div class="feature-dropdown-content">
+                            <div class="feature-toggle-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="sponsorBlockToggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span class="toggle-label">Enable SponsorBlock</span>
+                            </div>
+                            <div class="feature-settings">
+                                <p class="feature-description">Automatically skip sponsored segments in videos.</p>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                
+                <!-- DeArrow Dropdown -->
+                <li class="feature-item">
+                    <button class="feature-toggle-btn" data-feature="dearrow">
+                        <span class="feature-icon">🖼️</span>
+                        <span class="feature-name">DeArrow</span>
+                        <span class="feature-arrow">▼</span>
+                    </button>
+                    <div class="feature-dropdown" id="dearrowDropdown">
+                        <div class="feature-dropdown-header">
+                            <h3>DeArrow</h3>
+                        </div>
+                        <div class="feature-dropdown-content">
+                            <div class="feature-toggle-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="dearrowToggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span class="toggle-label">Enable DeArrow</span>
+                            </div>
+                            <div class="feature-settings">
+                                <p class="feature-description">Improve titles and thumbnails to reduce clickbait.</p>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                
+                <!-- Return YouTube Dislike Dropdown -->
+                <li class="feature-item">
+                    <button class="feature-toggle-btn" data-feature="returnDislike">
+                        <span class="feature-icon">👎</span>
+                        <span class="feature-name">Return Dislikes</span>
+                        <span class="feature-arrow">▼</span>
+                    </button>
+                    <div class="feature-dropdown" id="returnDislikeDropdown">
+                        <div class="feature-dropdown-header">
+                            <h3>Return YouTube Dislike</h3>
+                        </div>
+                        <div class="feature-dropdown-content">
+                            <div class="feature-toggle-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="returnDislikeToggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span class="toggle-label">Enable Return Dislikes</span>
+                            </div>
+                            <div class="feature-settings">
+                                <p class="feature-description">Show dislike counts on videos.</p>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                
+                <!-- Download Dropdown -->
+                <li class="feature-item">
+                    <button class="feature-toggle-btn" data-feature="download">
+                        <span class="feature-icon">⬇️</span>
+                        <span class="feature-name">Download</span>
+                        <span class="feature-arrow">▼</span>
+                    </button>
+                    <div class="feature-dropdown" id="downloadDropdown">
+                        <div class="feature-dropdown-header">
+                            <h3>Video Download</h3>
+                        </div>
+                        <div class="feature-dropdown-content">
+                            <div class="download-form">
+                                <input type="text" id="downloadUrl" placeholder="Video URL">
+                                <div class="format-options">
+                                    <label>
+                                        <input type="radio" name="format" value="mp4" checked> MP4 Video
+                                    </label>
+                                </div>
+                                <button id="downloadBtn">Download</button>
+                            </div>
+                            <div class="downloads-list" id="downloadsList">
+                                <!-- Download items will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </nav>
 
         <!-- Main Content Area -->
         <div class="content-container">
@@ -43,48 +181,7 @@
                 disableblinkfeatures="AudioOutputDevices,MediaSession,UserMedia"
             ></webview>
 
-            <!-- Download Panel -->
-            <div class="download-panel">
-                <div class="download-header">
-                    <h3>Video Download</h3>
-                    <button id="toggleDownloadBtn">▼</button>
-                </div>
-                <div class="download-content">
-                    <div class="download-form">
-                        <input type="text" id="downloadUrl" placeholder="Video URL">
-                        <div class="format-options">
-                            <label>
-                                <input type="radio" name="format" value="mp4" checked> MP4 Video
-                            </label>
-                        </div>
-                        <button id="downloadBtn">Download</button>
-                    </div>
-                    <div class="downloads-list" id="downloadsList">
-                        <!-- Download items will be added here dynamically -->
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Features Panel -->
-            <div class="features-panel">
-                <div class="features-header">
-                    <h3>Features</h3>
-                    <button id="toggleFeaturesBtn">▼</button>
-                </div>
-                <div class="features-content">
-                    <p class="features-info">
-                        YTView includes the following built-in features:
-                    </p>
-                    <div class="features-list" id="featuresList">
-                        <!-- Feature items will be added here dynamically -->
-                    </div>
-                    <div class="features-actions">
-                        <p class="feature-help">
-                            Toggle features on/off using the switches. Changes take effect immediately.
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <!-- The old download and features panels have been moved to the header dropdown menus -->
         </div>
     </div>
     

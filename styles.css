@@ -109,6 +109,132 @@ body {
     color: white;
 }
 
+/* Feature Navigation Bar - Smaller and less intrusive */
+.feature-nav {
+    background-color: #f8f8f8;
+    border-bottom: 1px solid #e6e6e6;
+    padding: 0 10px;
+    height: 28px; /* Reduced height */
+    display: flex;
+    align-items: center;
+    z-index: 100;
+    font-size: 12px; /* Smaller font size */
+}
+
+.feature-menu {
+    display: flex;
+    list-style: none;
+    gap: 2px; /* Reduced gap */
+    height: 100%;
+    align-items: center;
+}
+
+.feature-item {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.feature-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 3px; /* Reduced gap */
+    padding: 0 6px; /* Smaller padding */
+    height: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    color: #333;
+    font-size: 11px; /* Smaller font */
+}
+
+.feature-toggle-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.feature-toggle-btn.active {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+    font-size: 12px; /* Smaller icon */
+}
+
+.feature-name {
+    font-weight: 500;
+}
+
+.feature-arrow {
+    font-size: 8px; /* Smaller arrow */
+    margin-left: 2px;
+}
+
+/* Feature Dropdown Content - Compact Version */
+.feature-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 250px; /* Narrower dropdown */
+    background-color: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-5px); /* Smaller animation */
+    transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+    z-index: 200;
+}
+
+.feature-item:hover .feature-dropdown,
+.feature-dropdown.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.feature-dropdown-header {
+    padding: 6px 10px; /* Smaller padding */
+    border-bottom: 1px solid #e0e0e0;
+    background-color: #f8f8f8;
+}
+
+.feature-dropdown-header h3 {
+    margin: 0;
+    font-size: 12px; /* Smaller font */
+    color: #333;
+}
+
+.feature-dropdown-content {
+    padding: 10px; /* Smaller padding */
+}
+
+.feature-toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Smaller gap */
+    margin-bottom: 10px; /* Smaller margin */
+}
+
+.toggle-label {
+    font-weight: 500;
+    font-size: 12px; /* Smaller font */
+}
+
+.feature-description {
+    font-size: 11px; /* Smaller font */
+    color: #666;
+    margin: 6px 0; /* Smaller margin */
+    line-height: 1.3; /* Tighter line height */
+}
+
+.feature-settings {
+    margin-top: 8px; /* Smaller margin */
+}
+
 /* Main content */
 .content-container {
     flex-grow: 1;
